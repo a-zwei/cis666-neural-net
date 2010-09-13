@@ -11,8 +11,7 @@ data NN = NN [Layer]
 
 numNeurons :: Layer -> Int
 numNeurons (Layer _ thetas) = length thetas
-
-numNeurons2 (Layer ws _) = length ws
+--numNeurons2 (Layer ws _) = length ws
 
 numInputs :: Layer -> Int
 numInputs (Layer (w:ws) _) = length w
@@ -32,8 +31,15 @@ applyLayer :: Layer -> [Float] -> [Float]
 applyLayer (Layer ws thetas) input = zipWith f ws thetas
   where f ws theta = sigmoid $ theta + sum (zipWith (*) ws input)
 
+-- | @applyLayers layers input@ applies the layers to the input
+--   and returns a list of the results from each layer
+applyLayers :: [Layer] -> [Float] -> [[Float]]
+applyLayers layers input = scanl f input $ map applyLayer layers
+  where f input g = g input
+
 apply :: NN -> [Float] -> [Float]
-apply (NN layers) input = foldl (flip applyLayer) input layers
+apply (NN layers) = last . applyLayers layers
+--apply2 (NN layers) input = foldl (flip applyLayer) input layers
 
 randomLayer :: (Float, Float) -> Int -> Int -> IO Layer
 randomLayer range i j = do
