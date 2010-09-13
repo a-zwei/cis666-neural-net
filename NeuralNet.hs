@@ -56,7 +56,8 @@ load :: FilePath -> IO NN
 load filepath = readFile filepath >>= return . read
 
 e :: [Float] -> [Float] -> Float
-e input target = (/ 2) . sum $ map (** 2) $ zipWith (-) input target
+e target output = (/ 2) . sum $ map (** 2) $ zipWith (-) output target
 
 train :: NN -> [Float] -> [Float] -> NN
 train nn input target = nn
+-- backprop nn $ e target $ apply nn input
