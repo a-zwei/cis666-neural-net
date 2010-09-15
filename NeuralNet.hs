@@ -25,20 +25,20 @@ validNN (NN layers) = all validLayer layers &&
   and (zipWith (==) (init (map numNeurons layers))
     (tail (map numInputs layers)))
 
-sigmoid = (1 /) . (1 +) . exp . negate
+sigmoid = recip . (1 +) . exp . negate
 
 applyLayer :: Layer -> [Float] -> [Float]
 applyLayer (Layer ws thetas) input = zipWith f ws thetas
   where f ws theta = sigmoid $ theta + sum (zipWith (*) ws input)
 
 -- | @applyLayers layers input@ applies the layers to the input
---   and returns a list of the results from each layer
+--   and returns a list of the results from each layer, final output first
 applyLayers :: [Layer] -> [Float] -> [[Float]]
-applyLayers layers input = scanl f input $ map applyLayer layers
+applyLayers layers input = reverse . scanl f input $ map applyLayer layers
   where f input g = g input
 
 apply :: NN -> [Float] -> [Float]
-apply (NN layers) = last . applyLayers layers
+apply (NN layers) = head . applyLayers layers
 --apply2 (NN layers) input = foldl (flip applyLayer) input layers
 
 randomLayer :: (Float, Float) -> Int -> Int -> IO Layer
@@ -64,8 +64,14 @@ load filepath = readFile filepath >>= return . read
 e :: [Float] -> [Float] -> Float
 e target output = (/ 2) . sum $ map (** 2) $ zipWith (-) output target
 
+d :: Float -> Float -> Float
+d t o = (t - o) * o * (1 - o)
+
 train :: NN -> [Float] -> [Float] -> NN
 train nn input target = nn
+--train nn input target = let output = apply nn input
+--                            ds = zipWith d target output in
+--  nn
 
 backpropOutput :: Layer -> [Float] -> [Float] -> Float -> Float -> Layer -> (Layer, [Float])
 backpropOutput hidden@(Layer ws thetas) outs trgs eta alpha prevD = (hidden, [0])
