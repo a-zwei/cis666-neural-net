@@ -66,4 +66,9 @@ e target output = (/ 2) . sum $ map (** 2) $ zipWith (-) output target
 
 train :: NN -> [Float] -> [Float] -> NN
 train nn input target = nn
--- backprop nn $ e target $ apply nn input
+
+backpropOutput :: Layer -> [Float] -> [Float] -> Float -> Float -> Layer -> (Layer, [Float])
+backpropOutput hidden@(Layer ws thetas) outs trgs eta alpha prevD = (hidden, [0])
+
+backpropHidden :: Layer -> [Float] -> [Float] -> Float -> Float -> Layer -> (Layer, [Float])
+backpropHidden hidden@(Layer ws thetas) outs adjs eta alpha prevD = (hidden, [0])
