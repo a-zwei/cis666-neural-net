@@ -64,9 +64,6 @@ load filepath = readFile filepath >>= return . read
 e :: [Float] -> [Float] -> Float
 e target output = (/ 2) . sum $ map (** 2) $ zipWith (-) output target
 
-d :: Float -> Float -> Float
-d t o = (t - o) * o * (1 - o)
-
 train :: NN -> [Float] -> [Float] -> NN
 train nn input target = nn
 --train nn input target = let output = apply nn input
@@ -75,6 +72,8 @@ train nn input target = nn
 
 backpropOutput :: Layer -> [Float] -> [Float] -> Float -> Float -> Layer -> (Layer, [Float])
 backpropOutput hidden@(Layer ws thetas) outs trgs eta alpha prevD = (hidden, [0])
+  where d t o = (t - o) * o * (1 - o)
 
 backpropHidden :: Layer -> [Float] -> [Float] -> Float -> Float -> Layer -> (Layer, [Float])
 backpropHidden hidden@(Layer ws thetas) outs adjs eta alpha prevD = (hidden, [0])
+  where d a o = a * o * (1 - o)
