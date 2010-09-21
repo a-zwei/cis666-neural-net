@@ -71,18 +71,28 @@ train nn input target = nn
 --                            ds = zipWith d target output in
 --  nn
 
+dws_ eta alpha d is a o prevDws = zipWith (dw $ d a o) is prevDws
+  where dw delta i prevDw = eta * delta * i + alpha * prevDw
+
+g eta alpha d a o prevDtheta = dtheta (d a o)
+  where dtheta delta = eta * delta + alpha * prevDtheta
+
 backpropOutput :: Layer -> [Float] -> [Float] -> [Float] -> Float -> Float ->
   Layer -> (Layer, [Float], Layer)
-backpropOutput hidden@(Layer ws thetas) is os ts eta alpha
-  prevD@(Layer prevDws prevDthetas) = (hidden, [0], prevD)
+backpropOutput hidden@(Layer ws thetas) is ts os eta alpha
+  prevD@(Layer prevDws prevDthetas) = (Layer newWs newThetas, [0], Layer dws dthetas)
     where newWs = zipWith (zipWith (+)) ws dws
-          dws = zipWith3 (f is) ts os prevDws
-          f is t o prevDws = zipWith (g $ d t o) is prevDws
+          dws = zipWith3 (dws_ eta alpha d is) ts os prevDws
+          newThetas = zipWith (+) thetas dthetas
+          dthetas = zipWith3 (g eta alpha d) ts os prevDthetas
           d t o = (t - o) * o * (1 - o)
-          g d i prevDw = eta * d * i + alpha * prevDw
 
 backpropHidden :: Layer -> [Float] -> [Float] -> [Float] -> Float -> Float ->
   Layer -> (Layer, [Float], Layer)
-backpropHidden hidden@(Layer ws thetas) is os as eta alpha
-  prevD@(Layer prevDws prevDthetas) = (hidden, [0], prevD)
-    where d a o = a * o * (1 - o)
+backpropHidden hidden@(Layer ws thetas) is as os eta alpha
+  prevD@(Layer prevDws prevDthetas) = (Layer newWs newThetas, [0], Layer dws dthetas)
+    where newWs = zipWith (zipWith (+)) ws dws
+          dws = zipWith3 (dws_ eta alpha d is) as os prevDws
+          newThetas = zipWith (+) thetas dthetas
+          dthetas = zipWith3 (g eta alpha d) as os prevDthetas
+          d a o = a * o * (1 - o)
