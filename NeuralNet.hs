@@ -1,6 +1,7 @@
 module NeuralNet where
 
 import Control.Monad
+import Data.List
 import System.Random
 
 data Layer = Layer [[Float]] [Float]
@@ -70,10 +71,18 @@ train nn input target = nn
 --                            ds = zipWith d target output in
 --  nn
 
-backpropOutput :: Layer -> [Float] -> [Float] -> Float -> Float -> Layer -> (Layer, [Float])
-backpropOutput hidden@(Layer ws thetas) outs trgs eta alpha prevD = (hidden, [0])
-  where d t o = (t - o) * o * (1 - o)
+backpropOutput :: Layer -> [Float] -> [Float] -> [Float] -> Float -> Float ->
+  Layer -> (Layer, [Float], Layer)
+backpropOutput hidden@(Layer ws thetas) is os ts eta alpha
+  prevD@(Layer prevDws prevDthetas) = (hidden, [0], prevD)
+    where newWs = zipWith (zipWith (+)) ws dws
+          dws = zipWith3 (f is) ts os prevDws
+          f is t o prevDws = zipWith (g $ d t o) is prevDws
+          d t o = (t - o) * o * (1 - o)
+          g d i prevDw = eta * d * i + alpha * prevDw
 
-backpropHidden :: Layer -> [Float] -> [Float] -> Float -> Float -> Layer -> (Layer, [Float])
-backpropHidden hidden@(Layer ws thetas) outs adjs eta alpha prevD = (hidden, [0])
-  where d a o = a * o * (1 - o)
+backpropHidden :: Layer -> [Float] -> [Float] -> [Float] -> Float -> Float ->
+  Layer -> (Layer, [Float], Layer)
+backpropHidden hidden@(Layer ws thetas) is os as eta alpha
+  prevD@(Layer prevDws prevDthetas) = (hidden, [0], prevD)
+    where d a o = a * o * (1 - o)
