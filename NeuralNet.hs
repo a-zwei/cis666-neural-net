@@ -12,7 +12,6 @@ data NN = NN [Layer]
 
 numNeurons :: Layer -> Int
 numNeurons (Layer _ thetas) = length thetas
---numNeurons2 (Layer ws _) = length ws
 
 numInputs :: Layer -> Int
 numInputs (Layer (w:ws) _) = length w
@@ -40,7 +39,7 @@ applyLayers layers input = reverse . scanl f input $ map applyLayer layers
 
 apply :: NN -> [Float] -> [Float]
 apply (NN layers) = head . applyLayers layers
---apply2 (NN layers) input = foldl (flip applyLayer) input layers
+--apply (NN layers) input = foldl (flip applyLayer) input layers
 
 randomLayer :: (Float, Float) -> Int -> Int -> IO Layer
 randomLayer range i j = do
@@ -111,18 +110,13 @@ backpropHidden eta alpha (BPR (Layer ws thetas) as (Layer prevDws prevDthetas)
           nas = zipWith3 (as_ d) ws as os
           (os, is) = os_is
 
-backpropFns eta alpha = backpropOutput eta alpha :
-  repeat (backpropHidden eta alpha)
-
-f :: BackpropResult -> (BackpropResult -> BackpropResult, Layer, Layer) ->
-  BackpropResult
-
-f (BPR _ as _ os_is) (g, l, d) = g $ BPR l as d os_is
-
 extractLayers :: [BackpropResult] -> ([Layer], [Layer])
 extractLayers [] = ([], [])
 extractLayers (r@(BPR l _ dl _):rs) = (l:ls, dl:dls)
   where (ls, dls) = extractLayers rs
+
+backpropFns eta alpha = backpropOutput eta alpha :
+  repeat (backpropHidden eta alpha)
 
 backprop :: Float -> Float -> NN -> NN -> [Float] -> [Float] -> (NN, NN)
 backprop eta alpha nn@(NN layers) prevDnn@(NN prevDlayers) input target
@@ -130,6 +124,13 @@ backprop eta alpha nn@(NN layers) prevDnn@(NN prevDlayers) input target
     where (_:newLayers, _:dlayers) = extractLayers bprs
           outputs = applyLayers layers input
           os_is = zip outputs $ tail outputs
-          backprops = zip3 (backpropFns eta alpha) (reverse layers) (reverse prevDlayers)
+          bfns = backpropFns eta alpha
+          backprops = zip3 bfns (reverse layers) (reverse prevDlayers)
           initR = BPR (zeroLayer 0 0) target (zeroLayer 0 0) os_is
           bprs = scanl f initR backprops
+          f (BPR _ as _ os_is) (g, l, d) = g $ BPR l as d os_is
+
+repeatBackprop eta alpha nn prevDnn input target 0 = (nn, prevDnn)
+repeatBackprop eta alpha nn prevDnn input target times
+  = repeatBackprop eta alpha nnn ndnn input target (times - 1)
+    where (nnn, ndnn) = backprop eta alpha nn prevDnn input target
