@@ -74,25 +74,51 @@ train nn input target = nn
 dws_ eta alpha d is a o prevDws = zipWith (dw $ d a o) is prevDws
   where dw delta i prevDw = eta * delta * i + alpha * prevDw
 
-g eta alpha d a o prevDtheta = dtheta (d a o)
+dthetas_ eta alpha d a o prevDtheta = dtheta (d a o)
   where dtheta delta = eta * delta + alpha * prevDtheta
 
-backpropOutput :: Layer -> [Float] -> [Float] -> [Float] -> Float -> Float ->
-  Layer -> (Layer, [Float], Layer)
-backpropOutput hidden@(Layer ws thetas) is ts os eta alpha
-  prevD@(Layer prevDws prevDthetas) = (Layer newWs newThetas, [0], Layer dws dthetas)
+as_ d ws a o = sum $ map (* d a o) ws
+
+type Backprop a = Layer -> [Float] -> [Float] -> [Float] -> Layer -> a
+
+type Backprop2 = (Layer, [([Float], [Float])], [Float], Layer)
+
+instance Monad (Backprop a) where
+  (>>=) = bind
+  return a = \layer is as os dlayer -> ((layer, as, dlayer), zip os is)
+
+--backpropOutput :: Float -> Float -> Backprop
+backpropOutput eta alpha (Layer ws thetas) is ts os (Layer prevDws prevDthetas)
+  = (Layer newWs newThetas, as, Layer dws dthetas)
     where newWs = zipWith (zipWith (+)) ws dws
           dws = zipWith3 (dws_ eta alpha d is) ts os prevDws
           newThetas = zipWith (+) thetas dthetas
-          dthetas = zipWith3 (g eta alpha d) ts os prevDthetas
+          dthetas = zipWith3 (dthetas_ eta alpha d) ts os prevDthetas
           d t o = (t - o) * o * (1 - o)
+          as = zipWith3 (as_ d) ws ts os
 
-backpropHidden :: Layer -> [Float] -> [Float] -> [Float] -> Float -> Float ->
-  Layer -> (Layer, [Float], Layer)
-backpropHidden hidden@(Layer ws thetas) is as os eta alpha
-  prevD@(Layer prevDws prevDthetas) = (Layer newWs newThetas, [0], Layer dws dthetas)
+--backpropHidden :: Float -> Float -> Backprop
+backpropHidden eta alpha (Layer ws thetas) is as os (Layer prevDws prevDthetas)
+  = (Layer newWs newThetas, nas, Layer dws dthetas)
     where newWs = zipWith (zipWith (+)) ws dws
           dws = zipWith3 (dws_ eta alpha d is) as os prevDws
           newThetas = zipWith (+) thetas dthetas
-          dthetas = zipWith3 (g eta alpha d) as os prevDthetas
+          dthetas = zipWith3 (dthetas_ eta alpha d) as os prevDthetas
           d a o = a * o * (1 - o)
+          nas = zipWith3 (as_ d) ws as os
+
+bind f ((layer@(Layer ws thetas), as, dlayer@(Layer dws dthetas)), os_is)  =
+  ((nlayer, nas, ndlayer), tail os_is)
+    where (nlayer@(Layer nws nthetas), nas, ndlayer@(Layer ndws ndthetas)) =
+            f layer is as os dlayer
+          os = fst . head $ os_is
+          is = snd . head $ os_is
+
+
+--backprop :: NN -> [Float] -> [Float] -> Float -> Float -> (NN, NN)
+--backprop nn@(NN layers) input target eta alpha = (NN newLayers, NN dlayers)
+--  where (newLayers, _, dlayers) = 
+--        outputs = applyLayers layers input
+--        os_is = zip outputs $ tail outputs
+--        backpropFns = backpropOutput : repeat backpropHidden
+--        f = zip
