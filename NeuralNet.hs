@@ -53,8 +53,22 @@ randomLayerD = randomLayer (-0.5, 0.5)
 randomLayers :: [Int] -> IO [Layer]
 randomLayers ns = sequence $ zipWith randomLayerD ns (tail ns)
 
+zeroLayer i j = Layer (replicate j (replicate i 0)) (replicate j 0)
+
+zeroLayerOf layer = zeroLayer (numInputs layer) (numNeurons layer)
+
+zeroLayers :: [Int] -> [Layer]
+zeroLayers ns = zipWith zeroLayer ns (tail ns)
+
 randomNN :: [Int] -> IO NN
 randomNN = liftM NN . randomLayers
+
+neuronsPerLayer (NN layers) = numInputs (head layers) : map numNeurons layers
+
+zeroNN :: [Int] -> NN
+zeroNN = NN . zeroLayers
+
+zeroNNOf = zeroNN . neuronsPerLayer
 
 save :: NN -> FilePath -> IO ()
 save nn filepath = writeFile filepath (show nn)
@@ -65,12 +79,6 @@ load filepath = readFile filepath >>= return . read
 e :: [Float] -> [Float] -> Float
 e target output = (/ 2) . sum $ map (** 2) $ zipWith (-) output target
 
-train :: NN -> [Float] -> [Float] -> NN
-train nn input target = nn
---train nn input target = let output = apply nn input
---                            ds = zipWith d target output in
---  nn
-
 dws_ eta alpha d is a o prevDws = zipWith (dw $ d a o) is prevDws
   where dw delta i prevDw = eta * delta * i + alpha * prevDw
 
@@ -79,46 +87,49 @@ dthetas_ eta alpha d a o prevDtheta = dtheta (d a o)
 
 as_ d ws a o = sum $ map (* d a o) ws
 
-type Backprop a = Layer -> [Float] -> [Float] -> [Float] -> Layer -> a
+data BackpropResult = BPR Layer [Float] Layer [([Float], [Float])]
 
-type Backprop2 = (Layer, [([Float], [Float])], [Float], Layer)
-
-instance Monad (Backprop a) where
-  (>>=) = bind
-  return a = \layer is as os dlayer -> ((layer, as, dlayer), zip os is)
-
---backpropOutput :: Float -> Float -> Backprop
-backpropOutput eta alpha (Layer ws thetas) is ts os (Layer prevDws prevDthetas)
-  = (Layer newWs newThetas, as, Layer dws dthetas)
+backpropOutput :: Float -> Float -> BackpropResult -> BackpropResult
+backpropOutput eta alpha (BPR (Layer ws thetas) ts (Layer prevDws prevDthetas)
+  (os_is:nos_is)) = BPR (Layer newWs newThetas) as (Layer dws dthetas) nos_is
     where newWs = zipWith (zipWith (+)) ws dws
           dws = zipWith3 (dws_ eta alpha d is) ts os prevDws
           newThetas = zipWith (+) thetas dthetas
           dthetas = zipWith3 (dthetas_ eta alpha d) ts os prevDthetas
           d t o = (t - o) * o * (1 - o)
           as = zipWith3 (as_ d) ws ts os
+          (os, is) = os_is
 
---backpropHidden :: Float -> Float -> Backprop
-backpropHidden eta alpha (Layer ws thetas) is as os (Layer prevDws prevDthetas)
-  = (Layer newWs newThetas, nas, Layer dws dthetas)
+backpropHidden :: Float -> Float -> BackpropResult -> BackpropResult
+backpropHidden eta alpha (BPR (Layer ws thetas) as (Layer prevDws prevDthetas)
+  (os_is:nos_is)) = BPR (Layer newWs newThetas) nas (Layer dws dthetas) nos_is
     where newWs = zipWith (zipWith (+)) ws dws
           dws = zipWith3 (dws_ eta alpha d is) as os prevDws
           newThetas = zipWith (+) thetas dthetas
           dthetas = zipWith3 (dthetas_ eta alpha d) as os prevDthetas
           d a o = a * o * (1 - o)
           nas = zipWith3 (as_ d) ws as os
+          (os, is) = os_is
 
-bind f ((layer@(Layer ws thetas), as, dlayer@(Layer dws dthetas)), os_is)  =
-  ((nlayer, nas, ndlayer), tail os_is)
-    where (nlayer@(Layer nws nthetas), nas, ndlayer@(Layer ndws ndthetas)) =
-            f layer is as os dlayer
-          os = fst . head $ os_is
-          is = snd . head $ os_is
+backpropFns eta alpha = backpropOutput eta alpha :
+  repeat (backpropHidden eta alpha)
 
+f :: BackpropResult -> (BackpropResult -> BackpropResult, Layer, Layer) ->
+  BackpropResult
 
---backprop :: NN -> [Float] -> [Float] -> Float -> Float -> (NN, NN)
---backprop nn@(NN layers) input target eta alpha = (NN newLayers, NN dlayers)
---  where (newLayers, _, dlayers) = 
---        outputs = applyLayers layers input
---        os_is = zip outputs $ tail outputs
---        backpropFns = backpropOutput : repeat backpropHidden
---        f = zip
+f (BPR _ as _ os_is) (g, l, d) = g $ BPR l as d os_is
+
+extractLayers :: [BackpropResult] -> ([Layer], [Layer])
+extractLayers [] = ([], [])
+extractLayers (r@(BPR l _ dl _):rs) = (l:ls, dl:dls)
+  where (ls, dls) = extractLayers rs
+
+backprop :: Float -> Float -> NN -> NN -> [Float] -> [Float] -> (NN, NN)
+backprop eta alpha nn@(NN layers) prevDnn@(NN prevDlayers) input target
+  = (NN newLayers, NN dlayers)
+    where (_:newLayers, _:dlayers) = extractLayers bprs
+          outputs = applyLayers layers input
+          os_is = zip outputs $ tail outputs
+          backprops = zip3 (backpropFns eta alpha) (reverse layers) (reverse prevDlayers)
+          initR = BPR (zeroLayer 0 0) target (zeroLayer 0 0) os_is
+          bprs = scanl f initR backprops
