@@ -135,9 +135,8 @@ repeatBackprop eta alpha nn prevDnn input target times
   = repeatBackprop eta alpha nnn ndnn input target (times - 1)
     where (nnn, ndnn) = backprop eta alpha nn prevDnn input target
 
-train :: Float -> Float -> NN -> [([Float], [Float])] -> Int -> Int -> NN
-train _ _ nn _ 0 _ = nn
-train _ _ nn [] _ _ = nn
-train eta alpha nn pats@((input, target):rpats) maxTimes timesPer
-  = train eta alpha tnn rpats (maxTimes - 1) timesPer
+train :: Float -> Float -> NN -> [([Float], [Float])] -> Int -> NN
+train _ _ nn [] _ = nn
+train eta alpha nn pats@((input, target):rpats) timesPer
+  = train eta alpha tnn rpats timesPer
     where (tnn, _) = repeatBackprop eta alpha nn (zeroNNOf nn) input target timesPer
