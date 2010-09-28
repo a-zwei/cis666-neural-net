@@ -33,4 +33,4 @@ main = do
   i <- getChar
   if i == 'y' || i == 'Y'
     then save nnn "scaler.nn"
-    else return ()
+    else putStrLn "Exiting without saving!"
