@@ -16,15 +16,6 @@ numNeurons (Layer _ thetas) = length thetas
 numInputs :: Layer -> Int
 numInputs (Layer (w:ws) _) = length w
 
-validLayer :: Layer -> Bool
-validLayer l@(Layer ws thetas) = all (== numInputs l) (map length ws) &&
-  length ws == length thetas
-
-validNN :: NN -> Bool
-validNN (NN layers) = all validLayer layers &&
-  and (zipWith (==) (init (map numNeurons layers))
-    (tail (map numInputs layers)))
-
 sigmoid = recip . (1 +) . exp . negate
 
 applyLayer :: Layer -> [Float] -> [Float]
@@ -53,8 +44,6 @@ randomLayers :: [Int] -> IO [Layer]
 randomLayers ns = sequence $ zipWith randomLayerD ns (tail ns)
 
 zeroLayer i j = Layer (replicate j (replicate i 0)) (replicate j 0)
-
-zeroLayerOf layer = zeroLayer (numInputs layer) (numNeurons layer)
 
 zeroLayers :: [Int] -> [Layer]
 zeroLayers ns = zipWith zeroLayer ns (tail ns)
@@ -138,5 +127,5 @@ repeatBackprop eta alpha nn prevDnn input target times
 train :: Float -> Float -> NN -> [([Float], [Float])] -> Int -> NN
 train _ _ nn [] _ = nn
 train eta alpha nn pats@((input, target):rpats) timesPer
-  = train eta alpha tnn rpats timesPer
-    where (tnn, _) = repeatBackprop eta alpha nn (zeroNNOf nn) input target timesPer
+  = train eta alpha t rpats timesPer
+    where (t, _) = repeatBackprop eta alpha nn (zeroNNOf nn) input target timesPer
