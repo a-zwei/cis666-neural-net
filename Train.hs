@@ -16,9 +16,9 @@ main = do
                        loadPGM "pgm/6slash.pgm",
                        loadPGM "pgm/6x.pgm"]
   nn <- load "scaler.nn"
+
   putStr "Es: "
-  let outputs = map (apply nn) inputs
-  print $ zipWith e targets outputs
+  print $ zipWith e targets $ map (apply nn) inputs
 
   putStr "Training... how many times per pattern? "
   hFlush stdout
