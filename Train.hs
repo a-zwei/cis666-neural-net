@@ -7,14 +7,18 @@ import System.IO
 (eta, alpha) = (0.5, 0.9)
 
 main = do
-  inputs <- sequence [loadPGM "pgm/3backslash.pgm",
-                      loadPGM "pgm/3circle.pgm",
-                      loadPGM "pgm/3slash.pgm",
-                      loadPGM "pgm/3x.pgm"]
-  targets <- sequence [loadPGM "pgm/6backslash.pgm",
-                       loadPGM "pgm/6circle.pgm",
-                       loadPGM "pgm/6slash.pgm",
-                       loadPGM "pgm/6x.pgm"]
+  ipgms <- sequence [loadPGM "pgm/3backslash.pgm",
+                     loadPGM "pgm/3circle.pgm",
+                     loadPGM "pgm/3slash.pgm",
+                     loadPGM "pgm/3x.pgm"]
+  tpgms <- sequence [loadPGM "pgm/6backslash.pgm",
+                     loadPGM "pgm/6circle.pgm",
+                     loadPGM "pgm/6slash.pgm",
+                     loadPGM "pgm/6x.pgm"]
+
+  let inputs = map (\(PGM _ _ pxs) -> pxs) ipgms
+  let targets = map (\(PGM _ _ pxs) -> pxs) tpgms
+
   nn <- load "scaler.nn"
 
   putStr "Es: "
