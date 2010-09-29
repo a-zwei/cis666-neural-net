@@ -4,6 +4,8 @@ data PGM = PGM Int Int [Float]
 
 dropComments = filter (\(s:ss) -> s /= '#')
 
+pxsPGM (PGM _ _ pxs) = pxs
+
 loadPGM :: FilePath -> IO PGM
 loadPGM file = do
   text <- readFile file
@@ -20,5 +22,5 @@ segment n xs = f : segment n fs
 
 savePGM :: FilePath -> PGM -> Int -> IO ()
 savePGM file (PGM w h pxs) maxG = do
-  writeFile file $ "P1\n" ++ show w ++ " " ++ show h ++ "\n" ++ show maxG ++ "\n"
+  writeFile file $ "P2\n" ++ show w ++ " " ++ show h ++ "\n" ++ show maxG ++ "\n"
   appendFile file $ unlines $ map unwords $ segment w $ map (show . round . (* fromIntegral maxG)) pxs

@@ -129,3 +129,8 @@ train _ _ nn [] _ = nn
 train eta alpha nn pats@((input, target):rpats) timesPer
   = train eta alpha t rpats timesPer
     where (t, _) = repeatBackprop eta alpha nn (zeroNNOf nn) input target timesPer
+
+trainCycle _ _ nn _ 0 _ = nn
+trainCycle eta alpha nn pats times timesPer
+  = trainCycle eta alpha nnn pats (times - 1) timesPer
+    where nnn = train eta alpha nn pats timesPer
