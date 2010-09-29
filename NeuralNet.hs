@@ -38,11 +38,13 @@ randomLayer range i j = do
   thetas <- replicateM j (randomRIO range)
   return $ Layer weights thetas
 
+randomLayerD :: Int -> Int -> IO Layer
 randomLayerD = randomLayer (-0.5, 0.5)
 
 randomLayers :: [Int] -> IO [Layer]
 randomLayers ns = sequence $ zipWith randomLayerD ns (tail ns)
 
+zeroLayer :: Int -> Int -> Layer
 zeroLayer i j = Layer (replicate j (replicate i 0)) (replicate j 0)
 
 zeroLayers :: [Int] -> [Layer]
@@ -51,6 +53,7 @@ zeroLayers ns = zipWith zeroLayer ns (tail ns)
 randomNN :: [Int] -> IO NN
 randomNN = liftM NN . randomLayers
 
+neuronsPerLayer :: NN -> [Int]
 neuronsPerLayer (NN layers) = numInputs (head layers) : map numNeurons layers
 
 zeroNN :: [Int] -> NN
@@ -101,16 +104,18 @@ backpropHidden eta alpha (BPR (Layer ws thetas) as (Layer prevDws prevDthetas)
 
 extractLayers :: [BackpropResult] -> ([Layer], [Layer])
 extractLayers [] = ([], [])
-extractLayers (r@(BPR l _ dl _):rs) = (l:ls, dl:dls)
-  where (ls, dls) = extractLayers rs
+extractLayers (BPR l _ dl _ : bprs) = (l:ls, dl:dls)
+  where (ls, dls) = extractLayers bprs
 
+backpropFns :: Float -> Float -> [BackpropResult -> BackpropResult]
 backpropFns eta alpha = backpropOutput eta alpha :
   repeat (backpropHidden eta alpha)
 
 backprop :: Float -> Float -> NN -> NN -> [Float] -> [Float] -> (NN, NN)
-backprop eta alpha nn@(NN layers) prevDnn@(NN prevDlayers) input target
+backprop eta alpha (NN layers) (NN prevDlayers) input target
   = (NN newLayers, NN dlayers)
-    where (_:newLayers, _:dlayers) = extractLayers bprs
+    where (newLayers, dlayers) = (reverse nlr, reverse dlr)
+          (_:nlr, _:dlr) = extractLayers bprs
           outputs = applyLayers layers input
           os_is = zip outputs $ tail outputs
           bfns = backpropFns eta alpha
@@ -119,6 +124,8 @@ backprop eta alpha nn@(NN layers) prevDnn@(NN prevDlayers) input target
           bprs = scanl f initR backprops
           f (BPR _ as _ os_is) (g, l, d) = g $ BPR l as d os_is
 
+repeatBackprop :: Float -> Float -> NN -> NN -> [Float] -> [Float] -> Int ->
+  (NN, NN)
 repeatBackprop eta alpha nn prevDnn input target 0 = (nn, prevDnn)
 repeatBackprop eta alpha nn prevDnn input target times
   = repeatBackprop eta alpha nnn ndnn input target (times - 1)
@@ -126,10 +133,11 @@ repeatBackprop eta alpha nn prevDnn input target times
 
 train :: Float -> Float -> NN -> [([Float], [Float])] -> Int -> NN
 train _ _ nn [] _ = nn
-train eta alpha nn pats@((input, target):rpats) timesPer
-  = train eta alpha t rpats timesPer
-    where (t, _) = repeatBackprop eta alpha nn (zeroNNOf nn) input target timesPer
+train eta alpha nn ((input, target):rpats) times
+  = train eta alpha t rpats times
+    where (t, _) = repeatBackprop eta alpha nn (zeroNNOf nn) input target times
 
+trainCycle :: Float -> Float -> NN -> [([Float], [Float])] -> Int -> Int -> NN
 trainCycle _ _ nn _ 0 _ = nn
 trainCycle eta alpha nn pats times timesPer
   = trainCycle eta alpha nnn pats (times - 1) timesPer
